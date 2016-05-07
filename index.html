@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!-- Based on http://openseadragon.github.io/openseadragonizer/index.html -->
+<!-- The License is not shown in that page, would be the New BSD License, -->
+<!-- copyright notice is "Copyright (C) 2015 OpenSeadragon contributors". -->
+<!--
+  keyboard shortcuts
+  [ n, >, . ] - move next image
+  [ p, <, , ] - move previous image
+  [ f ] - toggle full page
+-->
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <link rel="stylesheet" type="text/css" href="style.css">
+        <title>Customized OpenSeadragonizer for IIIF manifests</title>
+    </head>
+    <body>
+        <div id="openseadragon"></div>
+        <div id="loader"><span class="img-vertical-align-helper"></span></div>
+        <div id="popup">
+            <div id="error"></div>
+            <label for="url">Enter the URL of a IIIF manifest to OpenSeadragonize:</label><br>
+            <input type="url" id="url" autofocus>
+            <button type="button" id="show-button">Show!</button>
+            <span class="powered-by">
+                Powered by <a href="http://openseadragon.github.io">OpenSeadragon</a> 
+                and <a href="http://openseadragon.github.io/openseadragonizer">OpenSeadragonizer</a>
+            </span>
+        </div>
+
+        <script src="openseadragon/openseadragon.min.js"></script>
+        <script src="index.js"></script>
+        <script src="platform-specific.js"></script>
+    </body>
+</html>
