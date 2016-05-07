@@ -16,5 +16,4 @@
 
 - [ n, >, . ] - 次のコマへ移動 (next page)
 - [ p, <, , ] - 前のコマへ移動 (previous page)
-- [ c ] - 領域選択モード切り替え (toggle selection mode)
 - [ f ] - フルスクリーン切り替え (toggle full page)

@@ -149,11 +149,13 @@
             initialPage: initialPage,
             navPrevNextWrap: true,
             tileSources: tileSources,
-            maxZoomPixelRatio: 2,
+            maxZoomPixelRatio: 2
         });
         viewer.addHandler("tile-drawn", function readyHandler() {
             viewer.removeHandler("tile-drawn", readyHandler);
-            document.body.removeChild(loaderElt);
+            if (loaderElt && loaderElt.parentNode) {
+                loaderElt.parentNode.removeChild(loaderElt);
+            }
             updateHistory(initialPage);
             loadAnnots(initialPage);
         });
@@ -216,29 +218,44 @@
                 viewer.addHandler("tile-drawn", function readyHandler2() {
                     viewer.removeHandler("tile-drawn", readyHandler2);
                     var tiledImage = viewer.world.getItemAt(0);
+                    function addEvent(elt, type, handler) {
+                        if (elt.addEventListener) {
+                            elt.addEventListener(type, handler);
+                        } else if (elt.attachEvent) {
+                            elt.attachEvent("on" + type, function() { handler.call(elt, window.event); });
+                        }
+                    }
                     for (var i = 0; i < overlays.length; i++) {
                         viewer.removeOverlay("runtime-overlay" + i);
                         var elt = document.createElement("div");
                         elt.id = "runtime-overlay" + i;
                         elt.className = "highlight";
                         elt.setAttribute("data-text", escapeHtml(overlays[i].chars));
-                        elt.onmouseover = function () {
+                        var ev1, ev2;
+                        if ("ontouchstart" in window) {
+                            ev1 = "touchstart";
+                            ev2 = "touchend";
+                        } else {
+                            ev1 = "mouseover";
+                            ev2 = "mouseout";
+                        }
+                        addEvent(elt, ev1, function () {
                             var eltTooltip = document.createElement("div");
                             eltTooltip.id = "runtime-tooltip";
                             eltTooltip.className = "tooltip";
                             eltTooltip.innerHTML = this.getAttribute("data-text");
                             var eltTooltipOld = document.getElementById(eltTooltip.id);
-                            if (eltTooltipOld) {
-                                this.removeChild(eltTooltipOld);
+                            if (eltTooltipOld && eltTooltipOld.parentNode) {
+                                eltTooltipOld.parentNode.removeChild(eltTooltipOld);
                             }
                             this.appendChild(eltTooltip);
-                        };
-                        elt.onmouseout = function () {
+                        });
+                        addEvent(elt, ev2, function () {
                             var eltTooltip = document.getElementById("runtime-tooltip");
-                            if (eltTooltip) {
-                                this.removeChild(eltTooltip);
+                            if (eltTooltip && eltTooltip.parentNode) {
+                                eltTooltip.parentNode.removeChild(eltTooltip);
                             }
-                        };
+                        });
                         var on = overlays[i].on;
                         viewer.addOverlay({
                             element: elt,
