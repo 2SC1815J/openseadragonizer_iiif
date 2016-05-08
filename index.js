@@ -118,7 +118,11 @@
                         var image = canvas.images[0];
                         if (image.resource.service["@id"]) {
                             var id = image.resource.service["@id"];
-                            tileSources.push(id + "/info.json");
+                            if (id.slice(-1) == "/") {
+                                tileSources.push(id + "info.json");
+                            } else {
+                                tileSources.push(id + "/info.json");
+                            }
                             if (Array.isArray(canvas.otherContent) && canvas.otherContent.length > 0) {
                                 var otherContent = canvas.otherContent[0];
                                 if (otherContent["@id"]) {
