@@ -38,7 +38,6 @@
  * https://github.com/2SC1815J/openseadragonizer_iiif
  */
 (function () {
-    var loaderElt = document.getElementById("loader");
     var popupElt = document.getElementById("popup");
     var urlElt = document.getElementById("url");
     
@@ -65,14 +64,13 @@
                 url = OpenSeadragon.getUrlParameter("encoded") ?
                     decodeURIComponent(manifestUrlParameter) : manifestUrlParameter;
             }
+
             var initialPage = parseInt(OpenSeadragon.getUrlParameter("page"));
             if (isNaN(initialPage)) {
                 initialPage = 0;
             }
             var options = {
                 src: url,
-                container: document.getElementById("loader"),
-                crossOrigin: 'Anonymous',
                 initialPage: initialPage
             };
             loadManifest(options, onManifestLoaded);
@@ -83,13 +81,15 @@
     function loadManifest(options, successCallback) {
         OpenSeadragon.makeAjaxRequest({
             url: options.src,
-            withCredentials: this.ajaxWithCredentials,
             success: function(xhr) {
                 var data = OpenSeadragon.parseJSON(xhr.responseText);
                 successCallback({
                     data: data,
                     options: options
                 });
+            },
+            error: function(xhr, exc) {
+                onError();
             }
         });
     }
@@ -107,7 +107,7 @@
         // minimum implementation
         // http://iiif.io/api/presentation/2.0
         if (data.label) {
-            document.title = data.label + " | OpenSeadragonizer" ;
+            document.title = data.label + " " + options.src + " | OpenSeadragonizer" ;
         }
         if (Array.isArray(data.sequences) && data.sequences.length > 0) {
             var sequence = data.sequences[0];
@@ -149,15 +149,14 @@
             initialPage: initialPage,
             navPrevNextWrap: true,
             tileSources: tileSources,
+            //crossOriginPolicy: 'Anonymous', //not work?
             maxZoomPixelRatio: 2
         });
         viewer.addHandler("tile-drawn", function readyHandler() {
             viewer.removeHandler("tile-drawn", readyHandler);
-            if (loaderElt && loaderElt.parentNode) {
-                loaderElt.parentNode.removeChild(loaderElt);
-            }
-            updateHistory(initialPage);
-            loadAnnots(initialPage);
+            var page = viewer.currentPage();
+            updateHistory(page);
+            loadAnnots(page);
         });
         viewer.addHandler("page", function(data) {
             console.log("page: " + data.page);
@@ -183,7 +182,6 @@
                     var annotUrl = otherContent.url;
                     OpenSeadragon.makeAjaxRequest({
                         url: annotUrl,
-                        withCredentials: this.ajaxWithCredentials,
                         success: function(xhr) {
                             var data = OpenSeadragon.parseJSON(xhr.responseText);
                             onAnnotsLoaded(data);
@@ -225,6 +223,14 @@
                             elt.attachEvent("on" + type, function() { handler.call(elt, window.event); });
                         }
                     }
+                    function removeTooltip() {
+                        var eltTooltip = document.getElementById("runtime-tooltip");
+                        if (eltTooltip && eltTooltip.parentNode) {
+                            eltTooltip.parentNode.removeChild(eltTooltip);
+                        }
+                    }
+                    var tooltipTimeoutId = null;
+                    var isTouchDevice = "ontouchstart" in window;
                     for (var i = 0; i < overlays.length; i++) {
                         viewer.removeOverlay("runtime-overlay" + i);
                         var elt = document.createElement("div");
@@ -232,9 +238,9 @@
                         elt.className = "highlight";
                         elt.setAttribute("data-text", escapeHtml(overlays[i].chars));
                         var ev1, ev2;
-                        if ("ontouchstart" in window) {
+                        if (isTouchDevice) {
                             ev1 = "touchstart";
-                            ev2 = "touchend";
+                            //ev2 = "touchend"; //'touchend' is captured and canceled by OpenSeadragon
                         } else {
                             ev1 = "mouseover";
                             ev2 = "mouseout";
@@ -247,15 +253,21 @@
                             var eltTooltipOld = document.getElementById(eltTooltip.id);
                             if (eltTooltipOld && eltTooltipOld.parentNode) {
                                 eltTooltipOld.parentNode.removeChild(eltTooltipOld);
+                                if (isTouchDevice) {
+                                    if (tooltipTimeoutId) {
+                                        clearTimeout(tooltipTimeoutId);
+                                        tooltipTimeoutId = null;
+                                    }
+                                }
                             }
                             this.appendChild(eltTooltip);
-                        });
-                        addEvent(elt, ev2, function () {
-                            var eltTooltip = document.getElementById("runtime-tooltip");
-                            if (eltTooltip && eltTooltip.parentNode) {
-                                eltTooltip.parentNode.removeChild(eltTooltip);
+                            if (isTouchDevice) {
+                                tooltipTimeoutId = setTimeout(removeTooltip, 3000);
                             }
                         });
+                        if (!isTouchDevice) {
+                            addEvent(elt, ev2, removeTooltip);
+                        }
                         var on = overlays[i].on;
                         viewer.addOverlay({
                             element: elt,
@@ -298,7 +310,6 @@
 
     function onError(event) {
         popupElt.style.display = "block";
-        loaderElt.removeChild(event.image);
         document.getElementById("error").textContent =
                 "Can not retrieve requested image.";
     }

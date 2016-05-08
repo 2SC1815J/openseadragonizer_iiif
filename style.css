@@ -122,6 +122,7 @@ body {
     -moz-box-sizing: border-box;
     -webkit-box-sizing: border-box;
     border: 2px solid #017BBC;
+    background: transparent url('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7') repeat;
 }
 .highlight:hover, .highlight:focus{
     border: 2px solid #E65058;
