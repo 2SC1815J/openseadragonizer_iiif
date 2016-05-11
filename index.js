@@ -42,7 +42,7 @@
     var urlElt = document.getElementById("url");
     
     urlElt.onkeyup = function (event) {
-        if (event.keyCode === 13) {
+        if (event && event.keyCode === 13) {
             location.href = '?manifest=' + urlElt.value;
         }
     };
@@ -65,7 +65,7 @@
                     decodeURIComponent(manifestUrlParameter) : manifestUrlParameter;
             }
 
-            var initialPage = parseInt(OpenSeadragon.getUrlParameter("page"));
+            var initialPage = parseInt(OpenSeadragon.getUrlParameter("page"), 10);
             if (isNaN(initialPage)) {
                 initialPage = 0;
             }
@@ -118,7 +118,7 @@
                         var image = canvas.images[0];
                         if (image.resource.service["@id"]) {
                             var id = image.resource.service["@id"];
-                            if (id.slice(-1) == "/") {
+                            if (id.slice(-1) === "/") {
                                 tileSources.push(id + "info.json");
                             } else {
                                 tileSources.push(id + "/info.json");
@@ -126,8 +126,7 @@
                             if (Array.isArray(canvas.otherContent) && canvas.otherContent.length > 0) {
                                 var otherContent = canvas.otherContent[0];
                                 if (otherContent["@id"]) {
-                                    var id = otherContent["@id"];
-                                    otherContents.push( { tileSourcesIndex: j, url: id } );
+                                    otherContents.push( { tileSourcesIndex: j, url: otherContent["@id"] } );
                                 }
                             }
                             j++;
@@ -146,7 +145,7 @@
         if (initialPage < 0 || initialPage > tileSources.length) {
             initialPage = 0;
         }
-        var viewer = OpenSeadragon({
+        var viewer = new OpenSeadragon({
             id: "openseadragon",
             prefixUrl: "openseadragon/images/",
             sequenceMode: sequenceMode,
@@ -156,14 +155,15 @@
             //crossOriginPolicy: 'Anonymous', //not work?
             maxZoomPixelRatio: 2
         });
+        var tiledrawnHandler = false;
         viewer.addHandler("tile-drawn", function readyHandler() {
-            viewer.removeHandler("tile-drawn", readyHandler);
+            viewer.removeHandler("tile-drawn", readyHandler); // not work in IE < 9
+            if (tiledrawnHandler) { return; } else { tiledrawnHandler = true; }
             var page = viewer.currentPage();
             updateHistory(page);
             loadAnnots(page);
         });
         viewer.addHandler("page", function(data) {
-            console.log("page: " + data.page);
             updateHistory(data.page);
             loadAnnots(data.page);
         });
@@ -172,29 +172,32 @@
         };
         function updateHistory(page) {
             if (hasHistoryReplaceState()) {
-                var new_url = location.protocol + "//" + location.host + location.pathname + '?manifest=' + event.options.src;
+                var newUrl = location.protocol + "//" + location.host + location.pathname + '?manifest=' + event.options.src;
                 if (page > 0) {
-                    new_url += "&page=" + String(page);
+                    newUrl += "&page=" + String(page);
                 }
-                history.replaceState(null, null, new_url);
+                history.replaceState(null, null, newUrl);
             }
         }
         function loadAnnots(page) {
             for (var i = 0; i < otherContents.length; i++) {
                 var otherContent = otherContents[i];
-                if (otherContent.tileSourcesIndex == page) {
+                if (otherContent.tileSourcesIndex === page) {
                     var annotUrl = otherContent.url;
-                    OpenSeadragon.makeAjaxRequest({
-                        url: annotUrl,
-                        success: function(xhr) {
-                            var data = OpenSeadragon.parseJSON(xhr.responseText);
-                            onAnnotsLoaded(data);
-                        }
-                    });
+                    loadAnnotsAjaxRequest(annotUrl, page);
                 }
             }
         }
-        function onAnnotsLoaded(data) {
+        function loadAnnotsAjaxRequest(annotUrl, page) {
+            OpenSeadragon.makeAjaxRequest({
+                url: annotUrl,
+                success: function(xhr) {
+                    var data = OpenSeadragon.parseJSON(xhr.responseText);
+                    onAnnotsLoaded(data, page);
+                }
+            });
+        }
+        function onAnnotsLoaded(data, page) {
             if (Array.isArray(data.resources) && data.resources.length > 0) {
                 var overlays = [];
                 for (var i = 0; i < data.resources.length; i++){
@@ -202,14 +205,15 @@
                     if (resource.on) {
                         // minimum implementation
                         var dims = /#xywh=([0-9]+),([0-9]+),([0-9]+),([0-9]+)/.exec(resource.on);
-                        if (dims && dims.length == 5) {
+                        if (dims && dims.length === 5) {
                             var chars = "";
                             if (typeof resource.resource.chars !== 'undefined') {
                                 chars = resource.resource.chars;
                             }
                             overlays.push({
                                 on: new OpenSeadragon.Rect(Number(dims[1]), Number(dims[2]), Number(dims[3]), Number(dims[4])),
-                                chars: chars
+                                chars: chars,
+                                pageNo: page
                             });
                         }
                     }
@@ -217,9 +221,13 @@
                 var escapeHtml = function(str) {
                     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); //&<>'"
                 };
+                var tiledrawnHandler2 = false;
                 viewer.addHandler("tile-drawn", function readyHandler2() {
-                    viewer.removeHandler("tile-drawn", readyHandler2);
+                    viewer.removeHandler("tile-drawn", readyHandler2); // not work in IE < 9
+                    if (tiledrawnHandler2) { return; } else { tiledrawnHandler2 = true; }
                     var tiledImage = viewer.world.getItemAt(0);
+                    var isTouchDevice = "ontouchstart" in window;
+                    var tooltipTimeoutId = null;
                     function addEvent(elt, type, handler) {
                         if (elt.addEventListener) {
                             elt.addEventListener(type, handler);
@@ -233,9 +241,32 @@
                             eltTooltip.parentNode.removeChild(eltTooltip);
                         }
                     }
-                    var tooltipTimeoutId = null;
-                    var isTouchDevice = "ontouchstart" in window;
+                    function addTooltip(elt) {
+                        return function(event) {
+                            var eltTooltip = document.createElement("div");
+                            eltTooltip.id = "runtime-tooltip";
+                            eltTooltip.className = "tooltip";
+                            eltTooltip.innerHTML = elt.getAttribute("data-text");
+                            var eltTooltipOld = document.getElementById(eltTooltip.id);
+                            if (eltTooltipOld && eltTooltipOld.parentNode) {
+                                eltTooltipOld.parentNode.removeChild(eltTooltipOld);
+                                if (isTouchDevice) {
+                                    if (tooltipTimeoutId) {
+                                        clearTimeout(tooltipTimeoutId);
+                                        tooltipTimeoutId = null;
+                                    }
+                                }
+                            }
+                            elt.appendChild(eltTooltip);
+                            if (isTouchDevice) {
+                                tooltipTimeoutId = setTimeout(removeTooltip, 3000);
+                            }
+                        };
+                    }
                     for (var i = 0; i < overlays.length; i++) {
+                        if (overlays[i].pageNo !== viewer.currentPage()) {
+                            continue;
+                        }
                         viewer.removeOverlay("runtime-overlay" + i);
                         var elt = document.createElement("div");
                         elt.id = "runtime-overlay" + i;
@@ -249,26 +280,7 @@
                             ev1 = "mouseover";
                             ev2 = "mouseout";
                         }
-                        addEvent(elt, ev1, function () {
-                            var eltTooltip = document.createElement("div");
-                            eltTooltip.id = "runtime-tooltip";
-                            eltTooltip.className = "tooltip";
-                            eltTooltip.innerHTML = this.getAttribute("data-text");
-                            var eltTooltipOld = document.getElementById(eltTooltip.id);
-                            if (eltTooltipOld && eltTooltipOld.parentNode) {
-                                eltTooltipOld.parentNode.removeChild(eltTooltipOld);
-                                if (isTouchDevice) {
-                                    if (tooltipTimeoutId) {
-                                        clearTimeout(tooltipTimeoutId);
-                                        tooltipTimeoutId = null;
-                                    }
-                                }
-                            }
-                            this.appendChild(eltTooltip);
-                            if (isTouchDevice) {
-                                tooltipTimeoutId = setTimeout(removeTooltip, 3000);
-                            }
-                        });
+                        addEvent(elt, ev1, addTooltip(elt));
                         if (!isTouchDevice) {
                             addEvent(elt, ev2, removeTooltip);
                         }

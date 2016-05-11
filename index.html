@@ -27,6 +27,8 @@
             </span>
         </div>
 
+        <!-- OpenSeadragon 2.1.0 uses "eval()" to parse JSON if window.JSON is not available. -->
+        <script>if (!window.JSON) {document.write(unescape('%3Cscript src="json2.js"%3E%3C/script%3E'));}</script>
         <script src="openseadragon/openseadragon.min.js"></script>
         <script src="index.js"></script>
         <script src="platform-specific.js"></script>
