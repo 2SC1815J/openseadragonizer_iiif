@@ -65,12 +65,17 @@
                     decodeURIComponent(manifestUrlParameter) : manifestUrlParameter;
             }
 
+            var extAnnotsUrlParameter = OpenSeadragon.getUrlParameter("extannots");
+            var extAnnotsUrl = OpenSeadragon.getUrlParameter("encoded") ?
+                decodeURIComponent(extAnnotsUrlParameter) : extAnnotsUrlParameter;
+
             var initialPage = parseInt(OpenSeadragon.getUrlParameter("page"), 10);
             if (isNaN(initialPage)) {
                 initialPage = 0;
             }
             var options = {
                 src: url,
+                extAnnotsUrl: extAnnotsUrl,
                 initialPage: initialPage
             };
             loadManifest(options, onManifestLoaded);
@@ -95,6 +100,27 @@
     }
 
     function onManifestLoaded(event) {
+        if (event.options.extAnnotsUrl) {
+            OpenSeadragon.makeAjaxRequest({
+                url: event.options.extAnnotsUrl,
+                success: function(xhr) {
+                    try {
+                        var data = OpenSeadragon.parseJSON(xhr.responseText);
+                        event.extAnnotsList = data;
+                    } catch (e) {
+                    }
+                    onManifestExtLoaded(event);
+                },
+                error: function(xhr) {
+                    onManifestExtLoaded(event);
+                }
+            });
+        } else {
+            onManifestExtLoaded(event);
+        }
+    }
+
+    function onManifestExtLoaded(event) {
         var tileSources = [];
         var otherContents = [];
         var data = event.data;
@@ -109,10 +135,29 @@
         if (data.label) {
             document.title = data.label + " " + options.src + " | OpenSeadragonizer" ;
         }
+        var i, j;
+        var extAnnotsList = null;
+        var extAnnotsMap = {};
+        if (event.extAnnotsList) {
+            extAnnotsList = event.extAnnotsList;
+            if (!Array.isArray(extAnnotsList)) {
+                extAnnotsList = [ extAnnotsList ];
+            }
+            for (i = 0; i < extAnnotsList.length; i++){
+                var extAnnots = extAnnotsList[i];
+                if (extAnnots && Array.isArray(extAnnots.resources) && 
+                    extAnnots.resources.length > 0 && extAnnots.resources[0].on) {
+                    var extAnnotsCanvaseId = extAnnots.resources[0].on.split("#")[0];
+                    if (extAnnotsCanvaseId) {
+                        extAnnotsMap[extAnnotsCanvaseId] = i;
+                    }
+                }
+            }
+        }
         if (Array.isArray(data.sequences) && data.sequences.length > 0) {
             var sequence = data.sequences[0];
             if (Array.isArray(sequence.canvases)) {
-                for (var i = 0, j = 0; i < sequence.canvases.length; i++){
+                for (i = 0, j = 0; i < sequence.canvases.length; i++){
                     var canvas = sequence.canvases[i];
                     if (Array.isArray(canvas.images) && canvas.images.length > 0) {
                         var image = canvas.images[0];
@@ -123,11 +168,22 @@
                             } else {
                                 tileSources.push(id + "/info.json");
                             }
+                            var extAnnotsData = null;
+                            if (image.on) {
+                                var canvaseId = image.on;
+                                if (canvaseId in extAnnotsMap) {
+                                    extAnnotsData = extAnnotsList[extAnnotsMap[canvaseId]];
+                                }
+                            }
+                            var otherContentUrl = null;
                             if (Array.isArray(canvas.otherContent) && canvas.otherContent.length > 0) {
                                 var otherContent = canvas.otherContent[0];
                                 if (otherContent["@id"]) {
-                                    otherContents.push( { tileSourcesIndex: j, url: otherContent["@id"] } );
+                                    otherContentUrl = otherContent["@id"];
                                 }
+                            }
+                            if (otherContentUrl || extAnnotsData) {
+                                otherContents.push( { tileSourcesIndex: j, url: otherContentUrl, extAnnots: extAnnotsData } );
                             }
                             j++;
                         }
@@ -176,6 +232,9 @@
                 if (page > 0) {
                     newUrl += "&page=" + String(page);
                 }
+                if (event.extAnnotsList) {
+                    newUrl += "&extannots=" + event.options.extAnnotsUrl;
+                }
                 history.replaceState(null, null, newUrl);
             }
         }
@@ -184,20 +243,34 @@
                 var otherContent = otherContents[i];
                 if (otherContent.tileSourcesIndex === page) {
                     var annotUrl = otherContent.url;
-                    loadAnnotsAjaxRequest(annotUrl, page);
+                    var extAnnots = otherContent.extAnnots;
+                    if (annotUrl) {
+                        loadAnnotsAjaxRequest(annotUrl, page, extAnnots);
+                    } else if (extAnnots) {
+                        onAnnotsLoaded(extAnnots, page);
+                    }
                 }
             }
         }
-        function loadAnnotsAjaxRequest(annotUrl, page) {
+        function loadAnnotsAjaxRequest(annotUrl, page, extAnnots) {
             OpenSeadragon.makeAjaxRequest({
                 url: annotUrl,
                 success: function(xhr) {
                     var data = OpenSeadragon.parseJSON(xhr.responseText);
-                    onAnnotsLoaded(data, page);
+                    onAnnotsLoaded(data, page, extAnnots);
                 }
             });
         }
-        function onAnnotsLoaded(data, page) {
+        function onAnnotsLoaded(data, page, extAnnots) {
+            if (extAnnots && Array.isArray(extAnnots.resources)) {
+                if (Array.isArray(data.resources)) {
+                    data.resources = data.resources.concat(extAnnots.resources);
+                } else if (data.resources) {
+                    data.resources = [ data.resources ].concat(extAnnots.resources);
+                } else {
+                    data.resources = extAnnots.resources;
+                }
+            }
             if (Array.isArray(data.resources) && data.resources.length > 0) {
                 var overlays = [];
                 for (var i = 0; i < data.resources.length; i++){
