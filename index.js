@@ -264,22 +264,35 @@
                         var newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
                             var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r&3|8)).toString(16);});
                         
+                        var baseUri = options.src;
+                        if (baseUri.slice(-1) === "/") {
+                            baseUri = baseUri.slice(0, -1);
+                        } else {
+                            var manifestElems = baseUri.split("/");
+                            if (manifestElems && manifestElems.length > 0) {
+                                var lastElem = manifestElems[manifestElems.length - 1];
+                                if (lastElem.indexOf("manifest") > -1 || lastElem.search(/\.json$/) !== -1) {
+                                    baseUri = manifestElems.slice(0, manifestElems.length - 1).join("/");
+                                }
+                            }
+                        }
+                        
                         var currentPage = viewer.currentPage();
                         var annotDataId;
                         if (sourceId in baseUriOtherContentIdMap) {
                             annotDataId = baseUriOtherContentIdMap[sourceId];
                         } else {
-                            annotDataId = sourceId + "/list/p" + currentPage + ".json";
+                            annotDataId = baseUri + "/list/p" + (currentPage + 1) + ".json";
                         }
                         
                         var resource = {};
-                        resource["@id"] = sourceId + "/p" + currentPage + "/" + newId + "/1";
+                        resource["@id"] = baseUri + "/p" + (currentPage + 1) + "/" + newId + "/1";
                         resource["@type"] = "cnt:ContentAsText";
                         resource.chars = chars || newId;
                         resource.format = "text/plain";
                         resource.language = "en";
                         var resources = {};
-                        resources["@id"] = sourceId + "/p" + currentPage + "/" + newId;
+                        resources["@id"] = baseUri + "/p" + (currentPage + 1) + "/" + newId;
                         resources["@type"] = "oa:Annotation";
                         resources.motivation = "sc:painting"; //should be "oa:commenting" ?
                         resources.resource = resource;
