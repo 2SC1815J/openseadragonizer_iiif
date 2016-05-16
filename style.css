@@ -129,6 +129,13 @@ body {
 .highlight:hover, .highlight:focus{
     border: 2px solid #E65058;
 }
+.highlightpre {
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+    border: 1px solid #FFFFFF;
+    background: rgba(0, 0, 0, 0.1);
+}
 
 .tooltip {
     display: block;

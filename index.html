@@ -7,6 +7,7 @@
   [ n, >, . ] - move next image
   [ p, <, , ] - move previous image
   [ f ] - toggle full page
+  [ j ] - download the JSON file of external annotations
 -->
 <html lang="en">
     <head>
@@ -26,10 +27,23 @@
                 and <a href="http://openseadragon.github.io/openseadragonizer">OpenSeadragonizer</a>
             </span>
         </div>
+        <div id="input_dialog"></div>
 
         <!-- OpenSeadragon 2.1.0 uses "eval()" to parse JSON if window.JSON is not available. -->
         <script>if (!window.JSON) {document.write(unescape('%3Cscript src="json2.js"%3E%3C/script%3E'));}</script>
         <script src="openseadragon/openseadragon.min.js"></script>
+        <!-- OpenSeadragonSelection 1.1.0 is not working properly in IE less than 10 -->
+        <script>if (location.search.match(/(\?|&)edit=1(&|$)/) && ("transform" in document.body.style)) {
+            document.write(unescape('%3Cscript src="openseadragon/openseadragonselection.js"%3E%3C/script%3E'));
+            document.write(unescape('%3Cscript src="jquery/jquery-1.12.3.min.js"%3E%3C/script%3E'));
+            document.write(unescape('%3Cscript src="jquery/jquery-ui.min.js"%3E%3C/script%3E'));
+            (function (){
+                var link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'jquery/jquery-ui.min.css';
+                document.getElementsByTagName('head')[0].appendChild(link);
+            })();
+        }</script>
         <script src="index.js"></script>
         <script src="platform-specific.js"></script>
     </body>

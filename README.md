@@ -13,6 +13,8 @@
 
 [IIIF manifest]: http://dms-data.stanford.edu/data/manifests/BnF/jr903ng8662/manifest.json
 
+### 外部アノテーションデータの表示
+
 ユーザが外部に用意したアノテーションファイルの内容をオーバーレイ表示することができます。URLの末尾に「&extannots=外部アノテーションファイルのURL」を追加してください。
 
 - 国文研データセット『[絵本松の調]』に対して、ユーザが作成した[アノテーション]を重ねて表示する例
@@ -28,8 +30,18 @@
 
 [IIIF Presentation API 2.0]:http://iiif.io/api/presentation/2.0/
 
+### アノテーション付与モード
+
+URLの末尾に「&edit=1」を追加すると、（モダンなブラウザでは）アノテーション付与モードになります。
+
+- 国文研データセット『[絵本松の調]』に対して、ユーザが作成した[アノテーション]を重ねて表示し、さらにアノテーションを付与するための編集モードとする例
+  - http://2sc1815j.github.io/openseadragonizer_iiif/?manifest=http://www2.dhii.jp/nijl/NIJL0008/NA4-0644/manifestt.json&page=3&extannots=https://gist.githubusercontent.com/2SC1815J/c5bd8f1fbe14aa62ae762d5e7073da3d/raw/8bc60d815a737f8c75bef91706634972c386323c/nijl0008_na4-0644_annots.json&edit=1
+
+アノテーション付与モードでは、「j」キーを押下することで、ユーザが付与したアノテーションデータをJSONファイルとしてダウンロードできます（外部アノテーションファイルが指定されているときには、それらとマージした内容となります）。このJSONファイルは、そのまま外部アノテーションファイルとして利用可能です。
+
 ### キーボードショートカット (keyboard shortcuts)
 
 - [ n, >, . ] - 次のコマへ移動 (next page)
 - [ p, <, , ] - 前のコマへ移動 (previous page)
 - [ f ] - フルスクリーン切り替え (toggle full page)
+- [ j ] - アノテーションファイル保存 (download the JSON file of external annotations)

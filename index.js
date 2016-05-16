@@ -154,6 +154,8 @@
                 }
             }
         }
+        var baseUriCanvaseIdMap = {};
+        var baseUriOtherContentIdMap = {};
         if (Array.isArray(data.sequences) && data.sequences.length > 0) {
             var sequence = data.sequences[0];
             if (Array.isArray(sequence.canvases)) {
@@ -162,11 +164,13 @@
                     if (Array.isArray(canvas.images) && canvas.images.length > 0) {
                         var image = canvas.images[0];
                         if (image.resource.service["@id"]) {
-                            var id = image.resource.service["@id"];
-                            if (id.slice(-1) === "/") {
-                                tileSources.push(id + "info.json");
-                            } else {
-                                tileSources.push(id + "/info.json");
+                            var baseUri = image.resource.service["@id"];
+                            if (baseUri.slice(-1) === "/") {
+                                baseUri = baseUri.slice(0, -1);
+                            }
+                            tileSources.push(baseUri + "/info.json");
+                            if (canvas["@id"]) {
+                                baseUriCanvaseIdMap[baseUri] = canvas["@id"];
                             }
                             var extAnnotsData = null;
                             if (image.on) {
@@ -180,6 +184,7 @@
                                 var otherContent = canvas.otherContent[0];
                                 if (otherContent["@id"]) {
                                     otherContentUrl = otherContent["@id"];
+                                    baseUriOtherContentIdMap[baseUri] = otherContentUrl;
                                 }
                             }
                             if (otherContentUrl || extAnnotsData) {
@@ -211,6 +216,157 @@
             //crossOriginPolicy: 'Anonymous', //not work?
             maxZoomPixelRatio: 2
         });
+        if ("selection" in viewer) {
+            var selection = viewer.selection({
+                returnPixelCoordinates: false,
+                //restrictToImage: true, //will have trouble at the bottom of portrait images
+                onSelection: function(rect) {
+                    var tiledImage = viewer.world.getItemAt(0);
+                    var imageRect = tiledImage.viewportToImageRectangle(rect.x, rect.y, rect.width, rect.height);
+                    var spatialDim = {}; //Media Fragments URI 1.0
+                    spatialDim.x = Math.round(imageRect.x);
+                    spatialDim.y = Math.round(imageRect.y);
+                    spatialDim.width = Math.round(imageRect.width);
+                    spatialDim.height = Math.round(imageRect.height);
+                    if (spatialDim.x < 0) { spatialDim.x = 0; }
+                    if (spatialDim.y < 0) { spatialDim.y = 0; }
+                    if (spatialDim.width <= 0) { spatialDim.width = 1; }
+                    if (spatialDim.height <= 0) { spatialDim.height = 1; }
+                    var iiifRegion = spatialDim.x + "," + spatialDim.y + "," + spatialDim.width + "," + spatialDim.height;
+                    var iiifSize = "full"; //will be replaced with "max" in IIIF API v3.0
+                    var iiifQuality = "default.jpg";
+                    var source = tiledImage.source;
+                    // logic taken from OpenSeadragon.TileSource.getTileUrl()
+                    if ( source['@context'].indexOf('/1.0/context.json') > -1 ||
+                         source['@context'].indexOf('/1.1/context.json') > -1 ||
+                         source['@context'].indexOf('/1/context.json') > -1 ) {
+                        iiifQuality = "native.jpg";
+                    }
+                    var uri = [ source['@id'], iiifRegion, iiifSize, "0", iiifQuality ].join("/");
+                    OpenSeadragon.console.log(uri);
+                    
+                    viewer.removeOverlay("runtime-overlay-selection");
+                    var elt = document.createElement("div");
+                    elt.id = "runtime-overlay-selection";
+                    elt.className = "highlightpre";
+                    viewer.addOverlay({
+                        element: elt,
+                        location: new OpenSeadragon.Rect(rect.x, rect.y, rect.width, rect.height)
+                    });
+                    
+                    function addAnnot(chars) {
+                        if (!(source['@id'] in baseUriCanvaseIdMap)) { return; }
+                        var resourcesOn = baseUriCanvaseIdMap[source['@id']] + "#xywh=" + iiifRegion;
+                        OpenSeadragon.console.log(resourcesOn);
+                        
+                        // taken from http://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
+                        var newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                            var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r&3|8)).toString(16);});
+                        
+                        var currentPage = viewer.currentPage();
+                        var annotDataId;
+                        if (source['@id'] in baseUriOtherContentIdMap) {
+                            annotDataId = baseUriOtherContentIdMap[source['@id']];
+                        } else {
+                            annotDataId = source['@id'] + "/list/p" + currentPage + ".json";
+                        }
+                        
+                        var resource = {};
+                        resource["@id"] = source['@id'] + "/p" + currentPage + "/" + newId + "/1";
+                        resource["@type"] = "cnt:ContentAsText";
+                        resource.chars = chars || newId;
+                        resource.format = "text/plain";
+                        resource.language = "en";
+                        var resources = {};
+                        resources["@id"] = source['@id'] + "/p" + currentPage + "/" + newId;
+                        resources["@type"] = "oa:Annotation";
+                        resources.motivation = "sc:painting"; //should be "oa:commenting" ?
+                        resources.resource = resource;
+                        resources.on = resourcesOn;
+                        var annotData = {};
+                        annotData["@context"] = "http://iiif.io/api/presentation/2/context.json";
+                        annotData["@id"] = annotDataId;
+                        annotData["@type"] = "sc:AnnotationList";
+                        annotData.resources = [ resources ];
+                        
+                        var i, j;
+                        var appended = false;
+                        for (i = 0; i < otherContents.length; i++) {
+                            var otherContent = otherContents[i];
+                            if (otherContent.tileSourcesIndex === currentPage) {
+                                if (otherContent.extAnnots && Array.isArray(otherContent.extAnnots.resources)) {
+                                    var rcids = {};
+                                    for (j = 0; j < otherContent.extAnnots.resources.length; j++) {
+                                        var rc = otherContent.extAnnots.resources[j];
+                                        if (rc["@id"]) {
+                                            rcids[rc["@id"]] = true;
+                                        }
+                                    }
+                                    if (!(resources["@id"] in rcids)) {
+                                        otherContent.extAnnots.resources.push(resources);
+                                    }
+                                } else {
+                                    otherContent.extAnnots = annotData;
+                                }
+                                appended = true;
+                            }
+                        }
+                        if (!appended) {
+                            otherContents.push( { tileSourcesIndex: currentPage, url: null, extAnnots: annotData } );
+                        }
+                        
+                        loadAnnots(currentPage);
+                    }
+                    if (source['@id'] in baseUriCanvaseIdMap) {
+                        $("#input_dialog").html('<input type="text" id="input_dialog_text" name="input_dialog_text" style="width: 95%;" />');
+                        $("#input_dialog").keypress(function(event) { event.stopPropagation(); });
+                        $("#input_dialog").dialog({
+                            modal: true,
+                            title: "Input an annotaion text",
+                            buttons: {
+                                "OK": function() {
+                                    $(this).dialog("close");
+                                    addAnnot($("#input_dialog_text").val());
+                                },
+                                "Cancel": function() {
+                                    $(this).dialog("close");
+                                    viewer.removeOverlay("runtime-overlay-selection");
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+            OpenSeadragon.addEvent(
+                document,
+                'keypress',
+                OpenSeadragon.delegate(this, function onKeyPress(e) {
+                    var key = e.keyCode ? e.keyCode : e.charCode;
+                    switch (String.fromCharCode(key)) {
+                    case 'j':
+                        var otherContentExtAnnots = [];
+                        for (i = 0; i < otherContents.length; i++) {
+                            if (otherContents[i].extAnnots) {
+                                otherContentExtAnnots.push(otherContents[i].extAnnots);
+                            }
+                        }
+                        OpenSeadragon.console.log(window.JSON.stringify(otherContentExtAnnots));
+                        if (window.navigator.msSaveBlob) {
+                            window.navigator.msSaveBlob(new Blob([ window.JSON.stringify(otherContentExtAnnots, null, "   ") ], { type: "text/plain" }), "annotations.json");
+                        } else if (URL.createObjectURL) {
+                            var elt = document.createElement("a");
+                            elt.href = URL.createObjectURL(new Blob([ window.JSON.stringify(otherContentExtAnnots, null, "   ") ], { type: "text/plain" }));
+                            elt.download = "annotations.json";
+                            document.body.appendChild(elt);
+                            elt.click();
+                            document.body.removeChild(elt);
+                        }
+                        return false;
+                    }
+                }),
+                false
+            );
+        }
         var tiledrawnHandler = false;
         viewer.addHandler("tile-drawn", function readyHandler() {
             viewer.removeHandler("tile-drawn", readyHandler); // not work in IE < 9
@@ -294,6 +450,7 @@
                 var escapeHtml = function(str) {
                     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); //&<>'"
                 };
+                viewer.clearOverlays();
                 var tiledrawnHandler2 = false;
                 viewer.addHandler("tile-drawn", function readyHandler2() {
                     viewer.removeHandler("tile-drawn", readyHandler2); // not work in IE < 9
