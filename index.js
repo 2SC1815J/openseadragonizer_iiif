@@ -236,13 +236,14 @@
                     var iiifSize = "full"; //will be replaced with "max" in IIIF API v3.0
                     var iiifQuality = "default.jpg";
                     var source = tiledImage.source;
+                    var sourceId = source['@id'].replace(/%2F/g, "/");
                     // logic taken from OpenSeadragon.TileSource.getTileUrl()
                     if ( source['@context'].indexOf('/1.0/context.json') > -1 ||
                          source['@context'].indexOf('/1.1/context.json') > -1 ||
                          source['@context'].indexOf('/1/context.json') > -1 ) {
                         iiifQuality = "native.jpg";
                     }
-                    var uri = [ source['@id'], iiifRegion, iiifSize, "0", iiifQuality ].join("/");
+                    var uri = [ sourceId, iiifRegion, iiifSize, "0", iiifQuality ].join("/");
                     OpenSeadragon.console.log(uri);
                     
                     viewer.removeOverlay("runtime-overlay-selection");
@@ -255,8 +256,8 @@
                     });
                     
                     function addAnnot(chars) {
-                        if (!(source['@id'] in baseUriCanvaseIdMap)) { return; }
-                        var resourcesOn = baseUriCanvaseIdMap[source['@id']] + "#xywh=" + iiifRegion;
+                        if (!(sourceId in baseUriCanvaseIdMap)) { return; }
+                        var resourcesOn = baseUriCanvaseIdMap[sourceId] + "#xywh=" + iiifRegion;
                         OpenSeadragon.console.log(resourcesOn);
                         
                         // taken from http://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
@@ -265,20 +266,20 @@
                         
                         var currentPage = viewer.currentPage();
                         var annotDataId;
-                        if (source['@id'] in baseUriOtherContentIdMap) {
-                            annotDataId = baseUriOtherContentIdMap[source['@id']];
+                        if (sourceId in baseUriOtherContentIdMap) {
+                            annotDataId = baseUriOtherContentIdMap[sourceId];
                         } else {
-                            annotDataId = source['@id'] + "/list/p" + currentPage + ".json";
+                            annotDataId = sourceId + "/list/p" + currentPage + ".json";
                         }
                         
                         var resource = {};
-                        resource["@id"] = source['@id'] + "/p" + currentPage + "/" + newId + "/1";
+                        resource["@id"] = sourceId + "/p" + currentPage + "/" + newId + "/1";
                         resource["@type"] = "cnt:ContentAsText";
                         resource.chars = chars || newId;
                         resource.format = "text/plain";
                         resource.language = "en";
                         var resources = {};
-                        resources["@id"] = source['@id'] + "/p" + currentPage + "/" + newId;
+                        resources["@id"] = sourceId + "/p" + currentPage + "/" + newId;
                         resources["@type"] = "oa:Annotation";
                         resources.motivation = "sc:painting"; //should be "oa:commenting" ?
                         resources.resource = resource;
@@ -317,7 +318,7 @@
                         
                         loadAnnots(currentPage);
                     }
-                    if (source['@id'] in baseUriCanvaseIdMap) {
+                    if (sourceId in baseUriCanvaseIdMap) {
                         $("#input_dialog").html('<input type="text" id="input_dialog_text" name="input_dialog_text" style="width: 95%;" />');
                         $("#input_dialog").keypress(function(event) { event.stopPropagation(); });
                         $("#input_dialog").dialog({
