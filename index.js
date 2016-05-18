@@ -132,6 +132,7 @@
         }
         // minimum implementation
         // http://iiif.io/api/presentation/2.0
+        if (!data) { return; }
         if (data.label) {
             document.title = data.label + " " + options.src + " | OpenSeadragonizer" ;
         }
@@ -158,12 +159,12 @@
         var baseUriOtherContentIdMap = {};
         if (Array.isArray(data.sequences) && data.sequences.length > 0) {
             var sequence = data.sequences[0];
-            if (Array.isArray(sequence.canvases)) {
+            if (sequence && Array.isArray(sequence.canvases)) {
                 for (i = 0, j = 0; i < sequence.canvases.length; i++){
                     var canvas = sequence.canvases[i];
-                    if (Array.isArray(canvas.images) && canvas.images.length > 0) {
+                    if (canvas && Array.isArray(canvas.images) && canvas.images.length > 0) {
                         var image = canvas.images[0];
-                        if (image.resource.service["@id"]) {
+                        if (image && image.resource && image.resource.service && image.resource.service["@id"]) {
                             var baseUri = image.resource.service["@id"];
                             if (baseUri.slice(-1) === "/") {
                                 baseUri = baseUri.slice(0, -1);
@@ -182,7 +183,7 @@
                             var otherContentUrl = null;
                             if (Array.isArray(canvas.otherContent) && canvas.otherContent.length > 0) {
                                 var otherContent = canvas.otherContent[0];
-                                if (otherContent["@id"]) {
+                                if (otherContent && otherContent["@id"]) {
                                     otherContentUrl = otherContent["@id"];
                                     baseUriOtherContentIdMap[baseUri] = otherContentUrl;
                                 }
@@ -294,7 +295,7 @@
                         var resources = {};
                         resources["@id"] = baseUri + "/p" + (currentPage + 1) + "/" + newId;
                         resources["@type"] = "oa:Annotation";
-                        resources.motivation = "sc:painting"; //should be "oa:commenting" ?
+                        resources.motivation = "sc:painting";
                         resources.resource = resource;
                         resources.on = resourcesOn;
                         var annotData = {};
@@ -432,6 +433,27 @@
             });
         }
         function onAnnotsLoaded(data, page, extAnnots) {
+            if (!data) { return; }
+            var getCssText = function(styleContent, selectorName) {
+                // taken from http://stackoverflow.com/questions/3326494/parsing-css-in-javascript-jquery
+                try {
+                    // not work in IE < 9
+                    var doc = document.implementation.createHTMLDocument("");
+                    var styleElement = document.createElement("style");
+                    
+                    styleElement.textContent = styleContent;
+                    doc.body.appendChild(styleElement);
+                    
+                    for (var i = 0; i < styleElement.sheet.cssRules.length; i++) {
+                        if (styleElement.sheet.cssRules[i].selectorText === selectorName) {
+                            return styleElement.sheet.cssRules[i].style.cssText;
+                        }
+                    }
+                } catch (e) {
+                }
+                return "";
+            };
+            
             if (extAnnots && Array.isArray(extAnnots.resources)) {
                 if (Array.isArray(data.resources)) {
                     data.resources = data.resources.concat(extAnnots.resources);
@@ -445,17 +467,27 @@
                 var overlays = [];
                 for (var i = 0; i < data.resources.length; i++){
                     var resource = data.resources[i];
-                    if (resource.on) {
+                    if (resource && resource.on) {
                         // minimum implementation
                         var dims = /#xywh=([0-9]+),([0-9]+),([0-9]+),([0-9]+)/.exec(resource.on);
                         if (dims && dims.length === 5) {
                             var chars = "";
-                            if (typeof resource.resource.chars !== 'undefined') {
-                                chars = resource.resource.chars;
+                            var styleCss = "";
+                            if (resource.resource) {
+                                var rc = resource.resource;
+                                if (typeof rc.chars !== 'undefined') {
+                                    chars = rc.chars;
+                                } else if (rc.full && typeof rc.full.chars !== 'undefined') {
+                                    chars = rc.full.chars;
+                                    if (resource.stylesheet && resource.stylesheet.chars && rc.style) {
+                                        styleCss = getCssText(resource.stylesheet.chars, "." + rc.style);
+                                    }
+                                }
                             }
                             overlays.push({
                                 on: new OpenSeadragon.Rect(Number(dims[1]), Number(dims[2]), Number(dims[3]), Number(dims[4])),
                                 chars: chars,
+                                styleCss: styleCss,
                                 pageNo: page
                             });
                         }
@@ -491,6 +523,10 @@
                             eltTooltip.id = "runtime-tooltip";
                             eltTooltip.className = "tooltip";
                             eltTooltip.innerHTML = elt.getAttribute("data-text");
+                            var styleCss = elt.getAttribute("data-tooltip-css");
+                            if (styleCss) {
+                                eltTooltip.setAttribute("style", styleCss);
+                            }
                             var eltTooltipOld = document.getElementById(eltTooltip.id);
                             if (eltTooltipOld && eltTooltipOld.parentNode) {
                                 eltTooltipOld.parentNode.removeChild(eltTooltipOld);
@@ -516,6 +552,9 @@
                         elt.id = "runtime-overlay" + i;
                         elt.className = "highlight";
                         elt.setAttribute("data-text", escapeHtml(overlays[i].chars));
+                        if (overlays[i].styleCss) {
+                            elt.setAttribute("data-tooltip-css", overlays[i].styleCss);
+                        }
                         var ev1, ev2;
                         if (isTouchDevice) {
                             ev1 = "touchstart";
