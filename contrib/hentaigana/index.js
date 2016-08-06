@@ -195,7 +195,8 @@
                         location: new OpenSeadragon.Rect(rect.x, rect.y, rect.width, rect.height)
                     });
                     
-                    if (sourceId in baseUriCanvaseIdMap) {
+                    var sourceId_ = source['@id'].replace(/%252F/g, "%2F");
+                    if (sourceId in baseUriCanvaseIdMap || sourceId_ in baseUriCanvaseIdMap) {
                         quality = iiifQuality;
                         format = iiifFormat;
                         if (source && source.profile && source.profile.length > 1) {
