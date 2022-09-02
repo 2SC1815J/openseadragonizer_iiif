@@ -29,8 +29,8 @@
  */
 /*
  * Customized OpenSeadragonizer for IIIF manifests with hentaigana
- * example: index.html?manifest=http://www2.dhii.jp/nijl/NIJL0001/SA4-0026/manifest.json
- * example: index.html?manifest=http://www2.dhii.jp/nijl/NIJL0001/SA4-0026/manifest.json&page=2
+ * example: index.html?manifest=http://codh.rois.ac.jp/pmjt/book/200003803/manifest.json
+ * example: index.html?manifest=http://codh.rois.ac.jp/pmjt/book/200003803/manifest.json&page=2
  * 
  * Copyright (C) 2016, 2SC1815J
  * https://twitter.com/2SC1815J
@@ -218,7 +218,7 @@
                         }
                         var img = [ sourceId, iiifRegion, iiifSize, "0", quality + format ].join("/");
                         $("#input_dialog").html('<div><img src="loading.gif"></div>');
-                        $.getJSON("https://hentaigana.herokuapp.com/json?img=" + img, function(data) {
+                        $.getJSON("https://hentaigana.2sc1815j.net/api?img=" + img, function(data) {
                             var dialogObj = $("#input_dialog");
                             dialogObj.html('');
                             if (data) {
@@ -234,7 +234,7 @@
                                             data.predictions[i].prob + '</td></tr>';
                                     }
                                     contents += '</table>';
-                                    contents += '<p style="font-size: smaller;">Provided by <a href="https://hentaigana.herokuapp.com/" target="_blank">https://hentaigana.herokuapp.com/</a></p>';
+                                    contents += '<p style="font-size: smaller;">Provided by <a href="https://hentaigana.2sc1815j.net/" target="_blank">https://hentaigana.2sc1815j.net/</a></p>';
                                     dialogObj.append(contents);
                                 }
                             }
